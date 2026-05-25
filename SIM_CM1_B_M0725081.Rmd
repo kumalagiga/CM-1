@@ -1,0 +1,240 @@
+---
+title: "Analisis Hubungan Harga Rental dan Popularitas Film pada Database Sakila"
+author: "Kumala Giga - M0725081 Statistika (B)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: tango
+    toc: true
+    toc_float: 
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    number_sections: true
+---
+<style>
+/* Custom CSS R Markdown Sakila*/
+
+/* Mengatur font seluruh dokumen */
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+}
+
+/* Judul utama */
+.title {
+  text-align: center;
+  padding: 18px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #072345, #2c7fb8);
+  color: white !important;
+  font-size: 34px;
+  font-weight: bold;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+/* Heading 1*/
+h1 {
+  color: white;
+  background-color: #2c7fb8;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+/* Heading 2*/
+h2 {
+  color: #2c7fb8;
+  border-bottom: 2px solid #2c7fb8;
+  padding-bottom: 5px;
+}
+
+/* Heading 3*/
+h3 {
+  color: #2c7fb8;
+  font-family: Arial, sans-serif;
+  border-left: 6px solid #2c7fb8;
+  padding-left: 10px;
+  margin-top: 25px;
+}
+
+/* Paragraf*/
+text-align: justify;
+font-size: 15px;
+
+/* Style link */
+a {
+  color: #1a73e8;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #0b57d0;
+  text-decoration: underline;
+}
+
+/* Style tabel */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: Arial;
+}
+
+th {
+  background-color: #2c7fb8;
+  color: white;
+  padding: 10px;
+  text-align: center;
+}
+
+td {
+  padding: 8px;
+  border-bottom: 1px solid #dddddd;
+}
+
+tr:nth-child(even){
+  background-color: #f2f2f2;
+}
+
+tr:hover {
+  background-color: #d1ecf1;
+}
+
+.kesimpulan-box {
+  background-color: #f5eddc;
+  border-left: 6px solid #f39c12;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 20px;
+  line-height: 1.8;
+}
+
+</style>
+
+# Deskripsi Insight
+Insight yang dianalisis adalah hubungan antara harga rental film dan tingkat popularitas film yang diukur berdasarkan jumlah rental pada database Sakila. Analisis ini digunakan untuk mengetahui pengaruh perbedaan harga rental pada minat pelanggan dalam menyewa film.
+
+> *Apakah harga rental berpengaruh terhadap 
+> jumlah penyewaan film pada database sakila?*
+
+# Connect SQL ke R
+```{r}
+library(DBI)
+library(odbc)
+
+con1 <- dbConnect(odbc(),
+                  Driver   = "MySQL ODBC 8.0 ANSI Driver",
+                  Server   = "127.0.0.1",
+                  UID      = "root",
+                  PWD      = "Kumgig416",
+                  Port     = 3306,
+                  Database = "sakila")
+```
+
+## Sumber Data
+| Tabel | Keterangan |
+|---|---|
+| `film` | Judul film dan harga rental |
+| `inventory` | Stok film yang disewa |
+| `rental` | Transaksi penyewaan film |
+
+## Variabel Penelitian
+- **`rental_rate``** — harga rental film
+- **`total_rental`** — jumlah total penyewaan film
+
+# Query SQL
+```{sql, eval = FALSE}
+SELECT 
+    f.title,
+    f.rental_rate,
+    COUNT(r.rental_id) AS total_rental
+  FROM film f
+  JOIN inventory i
+    ON f.film_id = i.film_id
+  JOIN rental r
+    ON i.inventory_id = r.inventory_id
+  GROUP BY f.title, f.rental_rate
+  ORDER BY total_rental DESC;
+```
+
+# Import Library dan Dataset
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+```{r}
+data <- read.csv("C:/Users/kumal/OneDrive/Dokumen/Smt 2/Sistem Informasi Manajemen/rental film.csv")
+head(data)
+summary(data)
+```
+
+# Visualisasi
+## Top 10 Film Paling Populer
+```{r vis-bar, fig.width=9, fig.height=5, fig.align='center'}
+top10 <- data %>%
+  arrange(desc(total_rental)) %>%
+  head(10)
+top10
+
+ggplot(top10, aes(x = reorder(title, total_rental),
+                  y = total_rental)) +
+  geom_bar(stat = "identity", fill = "#D3968C", show.legend = FALSE, width = 0.7) +
+  geom_text(aes(label = total_rental), hjust = -0.2, size = 3.5) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(c(0, 0.12))) +
+  labs(
+    title    = "Top 10 Film Paling Populer",
+    x = "Film",
+    y = "Jumlah Rental"
+  )
+```
+Visualisasi di atas menunjukkan 10 film dengan jumlah rental tertinggi pada database Sakila. Berdasarkan grafik, film Bucket Brotherhood menjadi film paling populer dengan total rental sebanyak 34 kali. Perbedaan jumlah rental antar film terlihat tidak terlalu jauh. Hal ini menunjukkan bahwa tingkat popularitas film relatif merata pada 10 film terpopuler.
+
+## Hubungan Antara Harga Rental dengan Popularitas Film
+```{r vis-scatter, fig.width=9, fig.height=5, fig.align='center'}
+ggplot(data, aes(x = rental_rate, y = total_rental)) +
+  geom_point(
+    color = "darkblue",size = 3,alpha = 0.7) +
+  geom_smooth(
+    method = "lm",se = FALSE,color = "red") +
+  theme_minimal() +
+  labs(
+    title = "Hubungan Harga Rental dan Popularitas Film",
+    subtitle = "Database Sakila",
+    x = "Harga Rental",
+    y = "Jumlah Rental"
+  )
+```
+Visualisasi scatter plot menunjukkan hubungan antara harga rental film dan jumlah rental film pada database Sakila. Setiap titik pada grafik merepresentasikan satu film dengan nilai harga rental tertentu dan jumlah rental film yang diperoleh.
+
+Pada garis regresi linear berwarna merah, garis tersebut sedikit menurun. Artinya, semakin tinggi harga rental film, jumlah rental film cenderung sedikit menurun. Adanya persebaran titik yang acak pada kelompok harga ini menunjukkan bahwa popularitas film tidak hanya dipengaruhi oleh harga rental, namun bisa melalui genre film, rating, dan aktor.
+
+# Analisis Regresi Linear
+```{r regresi}
+model <- lm(total_rental ~ rental_rate, data = data)
+summary(model)
+coef(model)
+```
+
+## Persamaan Matematis
+$$
+\hat{Y} = 17.3916 - 0.2164X
+$$
+dengan:
+- Y = jumlah rental film
+- X = harga rental film
+
+## Penjelasan
+Koefisien regresi bernilai negatif sebesar -0.2164. Hal ini menunjukkan bahwa hubungan antara harga rental dan popularitas film bersifat negatif. Namun, berdasarkan nilai p-value sebesar 0.09952, hubungan tersebut tidak signifikan pada tingkat signifikansi 5%. Hubungan tersebut berarti bahwa harga rental tidak memiliki pengaruh yang signifikan terhadap jumlah rental film.
+
+Nilai multiple r-squared sebesar 0.002836 juga menunjukkan bahwa sebagian besar variasi popularitas film dipengaruhi oleh faktor lain di luar harga rental.
+
+<div class="kesimpulan-box">
+**Kesimpulan**
+Berdasarkan visualisasi dan hasil analisis regresi linear, hubungan antara harga rental film dan jumlah rental film pada database Sakila ini tergolong lemah.
+
+Harga rental bukanlah faktor utama yang memengaruhi popularitas film pada database Sakila. Popularitas film ini bisa dipengaruhi oleh faktor-faktor lain, seperti genre film, rating, maupun aktor yang memerankan.
+
+</div>
